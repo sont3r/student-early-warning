@@ -1,0 +1,5 @@
+Weight_Scheme,Selected_Overlap_With_Base,Average_ML_Risk,Attendance_Risk_Students,Average_Previous_Performance_Risk
+Base 60/25/15,10,0.9998892845316629,10,0.485
+Risk-heavy 70/20/10,10,0.9998892845316629,10,0.485
+Attendance-heavy 50/35/15,10,0.9998892845316629,10,0.485
+Performance-heavy 50/20/30,10,0.9998892845316629,10,0.485
