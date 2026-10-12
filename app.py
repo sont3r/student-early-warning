@@ -815,7 +815,6 @@ def key_factors(row, low_study_cutoff, low_previous_cutoff):
 
     return ", ".join(factors[:3])
 
-
 def recommended_action(row):
     actions = []
 
@@ -838,7 +837,6 @@ def recommended_action(row):
         actions.append("Academic Review")
 
     return " + ".join(list(dict.fromkeys(actions))[:2])
-
 
 def analyse_students(data, model):
     analysed = data.copy()
