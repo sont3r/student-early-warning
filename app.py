@@ -1372,22 +1372,63 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-
 # =========================================================
 # TOP BAR
 # =========================================================
 
-st.markdown(
-    f"""
-    <div class="topbar">
-        <div class="search-box">⌕ &nbsp; Search student by ID...</div>
-        <div class="top-date">{date.today().strftime("%a, %d %b %Y")}</div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+search_col, date_col = st.columns([4, 1])
 
+with search_col:
+    top_search = st.text_input(
+        "Search student by ID",
+        placeholder="Search student by ID... e.g. S01001",
+        label_visibility="collapsed",
+        key="top_student_search"
+    )
 
+with date_col:
+    st.markdown(
+        f"""
+        <div style="
+            text-align:right;
+            padding-top:0.55rem;
+            color:#53657A;
+            font-size:0.82rem;
+            font-weight:600;
+        ">
+            {date.today().strftime("%a, %d %b %Y")}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Search for student
+if top_search.strip():
+    student_id = top_search.strip().upper()
+
+    result = analysed[
+        analysed["Student_ID"].str.upper() == student_id
+    ]
+
+    if result.empty:
+        st.warning(f"No student found with ID {student_id}")
+    else:
+        student = result.iloc[0]
+
+        st.success(f"Student {student['Student_ID']} found")
+
+        st.write(f"**Risk Level:** {student['Risk_Category']}")
+        st.write(
+            f"**Risk Score:** "
+            f"{student['Academic_Risk_Probability'] * 100:.1f}%"
+        )
+        st.write(f"**Attendance:** {student['Attendance']:.0f}%")
+        st.write(f"**Previous Score:** {student['Previous_Scores']:.0f}")
+        st.write(f"**Key Factors:** {student['Key_Factors']}")
+        st.write(
+            f"**Recommended Action:** {student['Recommended_Action']}"
+        )
+        
 # =========================================================
 # DASHBOARD
 # =========================================================
