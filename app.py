@@ -1402,8 +1402,12 @@ with date_col:
         unsafe_allow_html=True
     )
 
-# Search for student
+# =========================================================
+# STUDENT ID SEARCH
+# =========================================================
+
 if top_search.strip():
+
     student_id = top_search.strip().upper()
 
     result = analysed[
@@ -1412,23 +1416,78 @@ if top_search.strip():
 
     if result.empty:
         st.warning(f"No student found with ID {student_id}")
+
     else:
         student = result.iloc[0]
 
-        st.success(f"Student {student['Student_ID']} found")
-
-        st.write(f"**Risk Level:** {student['Risk_Category']}")
-        st.write(
-            f"**Risk Score:** "
-            f"{student['Academic_Risk_Probability'] * 100:.1f}%"
+        st.markdown(
+            f"### Student Profile — {student['Student_ID']}"
         )
-        st.write(f"**Attendance:** {student['Attendance']:.0f}%")
-        st.write(f"**Previous Score:** {student['Previous_Scores']:.0f}")
-        st.write(f"**Key Factors:** {student['Key_Factors']}")
+
+        # First row
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "Risk Level",
+                student["Risk_Category"]
+            )
+
+        with col2:
+            st.metric(
+                "Risk Score",
+                f"{student['Academic_Risk_Probability'] * 100:.1f}%"
+            )
+
+        with col3:
+            st.metric(
+                "Attendance",
+                f"{student['Attendance']:.0f}%"
+            )
+
+        with col4:
+            st.metric(
+                "Previous Score",
+                f"{student['Previous_Scores']:.0f}"
+            )
+
+        # Second row
+        col5, col6, col7 = st.columns(3)
+
+        with col5:
+            st.metric(
+                "Study Hours",
+                f"{student['Hours_Studied']:.0f}"
+            )
+
+        with col6:
+            intervention_status = (
+                "Eligible"
+                if student["Eligible_For_Intervention"]
+                else "Not Required"
+            )
+
+            st.metric(
+                "Intervention Status",
+                intervention_status
+            )
+
+        with col7:
+            st.metric(
+                "Priority Score",
+                f"{student['Intervention_Utility']:.2f}"
+            )
+
+        # Student support information
+        st.markdown("#### Student Support Information")
+
+        st.write(
+            f"**Key Factors:** {student['Key_Factors']}"
+        )
+
         st.write(
             f"**Recommended Action:** {student['Recommended_Action']}"
         )
-        
 # =========================================================
 # DASHBOARD
 # =========================================================
