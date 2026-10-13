@@ -818,6 +818,9 @@ def key_factors(row, low_study_cutoff, low_previous_cutoff):
 def recommended_action(row):
     actions = []
 
+    risk = row["Academic_Risk_Probability"]
+
+    # Specific student problems
     if row["Attendance"] < 70:
         actions.append("Attendance Monitoring")
 
@@ -830,11 +833,21 @@ def recommended_action(row):
     if str(row["Access_to_Resources"]).lower() == "low":
         actions.append("Resource Support")
 
-    if row["Academic_Risk_Probability"] >= 0.75:
-        actions.append("Academic Review")
+    # Very high risk
+    if risk >= 0.75:
+        actions.insert(0, "Academic Review")
 
-    if not actions:
-        actions.append("Academic Review")
+    # High risk but no specific problem found
+    elif risk >= 0.50 and not actions:
+        actions.append("Academic Support Review")
+
+    # Medium risk with no specific problem
+    elif risk >= 0.25 and not actions:
+        return "Continue Monitoring"
+
+    # Low risk with no specific problem
+    elif risk < 0.25 and not actions:
+        return "No Intervention Required"
 
     return " + ".join(list(dict.fromkeys(actions))[:2])
 
@@ -898,8 +911,31 @@ def risk_factor_counts(data):
 
     return pd.DataFrame(values, columns=["Risk Factor", "Students"])
 
+def intervention_cost(row):
+    """
+    Estimated resource cost for supporting a student.
+    Higher-cost interventions consume more of the available budget.
+    """
 
-def run_optimisation(eligible, capacity):
+    cost = 1
+
+    if row["Attendance"] < 70:
+        cost += 1
+
+    if row["Previous_Scores"] < 65:
+        cost += 2
+
+    if str(row["Motivation_Level"]).lower() == "low":
+        cost += 1
+
+    if str(row["Access_to_Resources"]).lower() == "low":
+        cost += 2
+
+    if row["Academic_Risk_Probability"] >= 0.75:
+        cost += 2
+
+    return cost
+def run_optimisation(eligible, capacity, budget=None):
     data = (
         eligible
         .reset_index()
@@ -909,18 +945,47 @@ def run_optimisation(eligible, capacity):
     if capacity <= 0 or data.empty:
         return data.iloc[0:0].copy()
 
+    # Calculate intervention cost for each student
+    data["Intervention_Cost"] = data.apply(
+        intervention_cost,
+        axis=1
+    )
+
     utilities = data["Intervention_Utility"].to_numpy()
+    costs = data["Intervention_Cost"].to_numpy()
+
     n = len(data)
+
+    # Do not allow capacity to exceed eligible students
+    capacity = min(capacity, n)
+
+    constraints = [
+        # Maximum number of students that can receive support
+        LinearConstraint(
+            np.ones((1, n)),
+            lb=0,
+            ub=capacity
+        )
+    ]
+
+    # Optional resource budget
+    if budget is not None:
+        constraints.append(
+            LinearConstraint(
+                costs.reshape(1, -1),
+                lb=0,
+                ub=budget
+            )
+        )
 
     result = milp(
         c=-utilities,
         integrality=np.ones(n),
-        bounds=Bounds(np.zeros(n), np.ones(n)),
-        constraints=LinearConstraint(
-            np.ones((1, n)),
-            lb=capacity,
-            ub=capacity
-        )
+        bounds=Bounds(
+            np.zeros(n),
+            np.ones(n)
+        ),
+        constraints=constraints
     )
 
     if not result.success:
@@ -931,31 +996,83 @@ def run_optimisation(eligible, capacity):
     return (
         data.iloc[selected]
         .copy()
-        .sort_values("Intervention_Utility", ascending=False)
+        .sort_values(
+            "Intervention_Utility",
+            ascending=False
+        )
+    )
+def strategy_comparison(eligible, capacity, budget=None, trials=1000):
+    data = eligible.copy()
+
+    # Calculate intervention cost for every eligible student
+    data["Intervention_Cost"] = data.apply(
+        intervention_cost,
+        axis=1
     )
 
+    capacity = min(capacity, len(data))
 
-def strategy_comparison(eligible, capacity, trials=1000):
-    capacity = min(capacity, len(eligible))
-
+    # -------------------------
+    # Random allocation
+    # -------------------------
     rng = np.random.default_rng(42)
-    idx = eligible.index.to_numpy()
-
     random_utility = []
 
     for _ in range(trials):
-        chosen = rng.choice(idx, size=capacity, replace=False)
-        random_utility.append(
-            eligible.loc[chosen, "Intervention_Utility"].sum()
+        shuffled = data.sample(
+            frac=1,
+            random_state=int(rng.integers(0, 1_000_000))
         )
 
-    highest = (
-        eligible
-        .sort_values("Academic_Risk_Probability", ascending=False)
-        .head(capacity)
+        selected = []
+        total_cost = 0
+
+        for idx, row in shuffled.iterrows():
+            cost = row["Intervention_Cost"]
+
+            if len(selected) >= capacity:
+                break
+
+            if budget is None or total_cost + cost <= budget:
+                selected.append(idx)
+                total_cost += cost
+
+        random_utility.append(
+            data.loc[selected, "Intervention_Utility"].sum()
+            if selected else 0
+        )
+
+    # -------------------------
+    # Highest ML risk
+    # -------------------------
+    risk_sorted = data.sort_values(
+        "Academic_Risk_Probability",
+        ascending=False
     )
 
-    optimised = run_optimisation(eligible, capacity)
+    highest_indices = []
+    highest_cost = 0
+
+    for idx, row in risk_sorted.iterrows():
+        cost = row["Intervention_Cost"]
+
+        if len(highest_indices) >= capacity:
+            break
+
+        if budget is None or highest_cost + cost <= budget:
+            highest_indices.append(idx)
+            highest_cost += cost
+
+    highest = data.loc[highest_indices].copy()
+
+    # -------------------------
+    # Optimised allocation
+    # -------------------------
+    optimised = run_optimisation(
+        data,
+        capacity,
+        budget=budget
+    )
 
     comparison = pd.DataFrame({
         "Strategy": [
@@ -971,15 +1088,14 @@ def strategy_comparison(eligible, capacity, trials=1000):
     })
 
     return comparison, optimised
-
-
 def support_mix(selected):
     categories = {
         "Tutoring": 0,
         "Attendance Monitoring": 0,
         "Mentoring": 0,
         "Resource Support": 0,
-        "Academic Review": 0
+        "Academic Review": 0,
+        "Academic Support Review": 0
     }
 
     for _, row in selected.iterrows():
@@ -995,8 +1111,6 @@ def support_mix(selected):
     })
 
     return result[result["Students"] > 0]
-
-
 # =========================================================
 # CHART HELPERS
 # =========================================================
@@ -2121,8 +2235,7 @@ elif page == "Resource Allocation":
     if eligible.empty:
         st.success("No students currently meet the intervention criteria.")
         st.stop()
-
-    top1, top2 = st.columns([1, 3])
+    top1, top2, top3 = st.columns([1, 1, 2])
 
     capacity = top1.number_input(
         "Available Intervention Places",
@@ -2132,7 +2245,15 @@ elif page == "Resource Allocation":
         step=1
     )
 
-    top2.markdown(
+    budget = top2.number_input(
+        "Resource Budget",
+        min_value=1,
+        value=30,
+        step=1,
+        help="Maximum resource units available for student interventions."
+    )
+
+    top3.markdown(
         f"""
         <div class="summary-card card-blue" style="min-height:105px;">
             <div class="summary-label">Eligible Students</div>
@@ -2152,11 +2273,11 @@ elif page == "Resource Allocation":
         with st.spinner("Optimising available intervention places..."):
             comparison, optimised = strategy_comparison(
                 eligible,
-                int(capacity)
+                int(capacity),
+                budget=int(budget)
             )
 
         c1, c2 = st.columns(2)
-
         with c1:
             st.markdown("### Strategy Comparison")
 
@@ -2215,6 +2336,26 @@ elif page == "Resource Allocation":
                     use_container_width=True,
                     theme=None
                 )
+        budget_used = int(optimised["Intervention_Cost"].sum())
+        budget_remaining = int(budget) - budget_used
+        places_used = len(optimised)
+
+        m1, m2, m3 = st.columns(3)
+
+        m1.metric(
+            "Students Selected",
+            f"{places_used} / {int(capacity)}"
+        )
+
+        m2.metric(
+            "Budget Used",
+            f"{budget_used} / {int(budget)}"
+        )
+
+        m3.metric(
+            "Budget Remaining",
+            budget_remaining
+        )
 
         st.markdown("### Prioritised Students")
 
@@ -2226,6 +2367,7 @@ elif page == "Resource Allocation":
             "Previous_Scores",
             "Key_Factors",
             "Recommended_Action",
+            "Intervention_Cost",
             "Intervention_Utility"
         ]].copy()
 
@@ -2243,6 +2385,7 @@ elif page == "Resource Allocation":
             "Previous_Scores": "Previous Score",
             "Key_Factors": "Key Factors",
             "Recommended_Action": "Recommended Action",
+            "Intervention_Cost": "Resource Cost",
             "Intervention_Utility": "Utility Score"
         })
 
@@ -2251,8 +2394,6 @@ elif page == "Resource Allocation":
             hide_index=True,
             use_container_width=True
         )
-
-
 # =========================================================
 # REPORTS
 # =========================================================
