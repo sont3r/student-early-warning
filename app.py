@@ -1419,14 +1419,42 @@ except FileNotFoundError as exc:
 except Exception as exc:
     st.error(f"Could not load the project: {exc}")
     st.stop()
-
 missing = [c for c in REQUIRED_FEATURES if c not in raw_data.columns]
 
 if missing:
     st.error("Missing required dataset columns: " + ", ".join(missing))
     st.stop()
 
-analysed = analyse_students(raw_data, model)
+
+# =========================================================
+# SESSION STUDENTS
+# =========================================================
+
+if "added_students" not in st.session_state:
+    st.session_state.added_students = []
+
+
+# Add manually created students to the original dataset
+if st.session_state.added_students:
+
+    added_students_df = pd.DataFrame(
+        st.session_state.added_students
+    )
+
+    combined_data = pd.concat(
+        [raw_data, added_students_df],
+        ignore_index=True,
+        sort=False
+    )
+
+else:
+    combined_data = raw_data.copy()
+
+
+analysed = analyse_students(
+    combined_data,
+    model
+)
 
 
 # =========================================================
@@ -2386,49 +2414,649 @@ if page == "Dashboard":
 
 elif page == "Students":
 
-    st.markdown("## Students")
+    # -----------------------------------------------------
+    # HEADER
+    # -----------------------------------------------------
 
-    c1, c2, c3 = st.columns([2, 1, 1])
+    header_left, header_right = st.columns(
+        [4, 1]
+    )
+
+    with header_left:
+        st.markdown("## Students")
+        st.caption(
+            "View student records, academic risk information "
+            "and add new students to the Early Warning System."
+        )
+
+    with header_right:
+
+        if st.button(
+            "＋ Add Student",
+            type="primary",
+            use_container_width=True
+        ):
+            st.session_state.show_add_student = True
+
+
+    if "show_add_student" not in st.session_state:
+        st.session_state.show_add_student = False
+
+
+    # =====================================================
+    # ADD STUDENT FORM
+    # =====================================================
+
+    if st.session_state.show_add_student:
+
+        st.write("")
+
+        with st.container(border=True):
+
+            st.markdown("### Add New Student")
+
+            st.caption(
+                "Enter the student's academic and contextual information. "
+                "The Early Warning System will calculate their risk automatically."
+            )
+
+            with st.form(
+                "add_student_form",
+                clear_on_submit=False
+            ):
+
+                # -----------------------------------------
+                # ACADEMIC INFORMATION
+                # -----------------------------------------
+
+                st.markdown("#### Academic Information")
+
+                academic1, academic2, academic3 = st.columns(3)
+
+                with academic1:
+
+                    new_hours_studied = st.number_input(
+                        "Hours Studied",
+                        min_value=0,
+                        max_value=100,
+                        value=20,
+                        step=1
+                    )
+
+                with academic2:
+
+                    new_attendance = st.number_input(
+                        "Attendance (%)",
+                        min_value=0,
+                        max_value=100,
+                        value=75,
+                        step=1
+                    )
+
+                with academic3:
+
+                    new_previous_scores = st.number_input(
+                        "Previous Score",
+                        min_value=0,
+                        max_value=100,
+                        value=70,
+                        step=1
+                    )
+
+
+                academic4, academic5, academic6 = st.columns(3)
+
+                with academic4:
+
+                    new_tutoring_sessions = st.number_input(
+                        "Tutoring Sessions",
+                        min_value=0,
+                        max_value=20,
+                        value=0,
+                        step=1
+                    )
+
+                with academic5:
+
+                    new_sleep_hours = st.number_input(
+                        "Sleep Hours",
+                        min_value=0.0,
+                        max_value=24.0,
+                        value=7.0,
+                        step=0.5
+                    )
+
+                with academic6:
+
+                    new_physical_activity = st.number_input(
+                        "Physical Activity",
+                        min_value=0,
+                        max_value=20,
+                        value=3,
+                        step=1
+                    )
+
+
+                st.write("")
+
+                # -----------------------------------------
+                # ENGAGEMENT AND SUPPORT
+                # -----------------------------------------
+
+                st.markdown("#### Engagement and Support")
+
+                support1, support2, support3 = st.columns(3)
+
+                with support1:
+
+                    new_motivation = st.selectbox(
+                        "Motivation Level",
+                        sorted(
+                            raw_data[
+                                "Motivation_Level"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with support2:
+
+                    new_parental_involvement = st.selectbox(
+                        "Parental Involvement",
+                        sorted(
+                            raw_data[
+                                "Parental_Involvement"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with support3:
+
+                    new_resources = st.selectbox(
+                        "Access to Resources",
+                        sorted(
+                            raw_data[
+                                "Access_to_Resources"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+
+                support4, support5, support6 = st.columns(3)
+
+                with support4:
+
+                    new_extracurricular = st.selectbox(
+                        "Extracurricular Activities",
+                        sorted(
+                            raw_data[
+                                "Extracurricular_Activities"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with support5:
+
+                    new_internet = st.selectbox(
+                        "Internet Access",
+                        sorted(
+                            raw_data[
+                                "Internet_Access"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with support6:
+
+                    new_peer_influence = st.selectbox(
+                        "Peer Influence",
+                        sorted(
+                            raw_data[
+                                "Peer_Influence"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+
+                st.write("")
+
+                # -----------------------------------------
+                # BACKGROUND INFORMATION
+                # -----------------------------------------
+
+                st.markdown("#### Student Background")
+
+                background1, background2, background3 = st.columns(3)
+
+                with background1:
+
+                    new_family_income = st.selectbox(
+                        "Family Income",
+                        sorted(
+                            raw_data[
+                                "Family_Income"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with background2:
+
+                    new_parental_education = st.selectbox(
+                        "Parental Education Level",
+                        sorted(
+                            raw_data[
+                                "Parental_Education_Level"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with background3:
+
+                    new_distance = st.selectbox(
+                        "Distance from Home",
+                        sorted(
+                            raw_data[
+                                "Distance_from_Home"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+
+                background4, background5, background6 = st.columns(3)
+
+                with background4:
+
+                    new_school_type = st.selectbox(
+                        "School Type",
+                        sorted(
+                            raw_data[
+                                "School_Type"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with background5:
+
+                    new_teacher_quality = st.selectbox(
+                        "Teacher Quality",
+                        sorted(
+                            raw_data[
+                                "Teacher_Quality"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with background6:
+
+                    new_gender = st.selectbox(
+                        "Gender",
+                        sorted(
+                            raw_data[
+                                "Gender"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+
+                background7, background8 = st.columns(2)
+
+                with background7:
+
+                    new_learning_disabilities = st.selectbox(
+                        "Learning Disabilities",
+                        sorted(
+                            raw_data[
+                                "Learning_Disabilities"
+                            ]
+                            .dropna()
+                            .astype(str)
+                            .unique()
+                            .tolist()
+                        )
+                    )
+
+                with background8:
+
+                    st.info(
+                        "The student ID, risk probability, risk level, "
+                        "priority score and recommended support will be "
+                        "generated automatically."
+                    )
+
+
+                st.write("")
+
+                # -----------------------------------------
+                # FORM BUTTONS
+                # -----------------------------------------
+
+                button1, button2, button3 = st.columns(
+                    [1, 1, 4]
+                )
+
+                with button1:
+
+                    submitted = st.form_submit_button(
+                        "Add Student",
+                        type="primary",
+                        use_container_width=True
+                    )
+
+                with button2:
+
+                    cancelled = st.form_submit_button(
+                        "Cancel",
+                        use_container_width=True
+                    )
+
+
+            # ---------------------------------------------
+            # CANCEL
+            # ---------------------------------------------
+
+            if cancelled:
+
+                st.session_state.show_add_student = False
+                st.rerun()
+
+
+            # ---------------------------------------------
+            # ADD STUDENT
+            # ---------------------------------------------
+
+            if submitted:
+
+                new_student = {
+                    "Hours_Studied": new_hours_studied,
+                    "Attendance": new_attendance,
+                    "Parental_Involvement": new_parental_involvement,
+                    "Access_to_Resources": new_resources,
+                    "Extracurricular_Activities": new_extracurricular,
+                    "Sleep_Hours": new_sleep_hours,
+                    "Previous_Scores": new_previous_scores,
+                    "Motivation_Level": new_motivation,
+                    "Internet_Access": new_internet,
+                    "Tutoring_Sessions": new_tutoring_sessions,
+                    "Family_Income": new_family_income,
+                    "Teacher_Quality": new_teacher_quality,
+                    "School_Type": new_school_type,
+                    "Peer_Influence": new_peer_influence,
+                    "Physical_Activity": new_physical_activity,
+                    "Learning_Disabilities": new_learning_disabilities,
+                    "Parental_Education_Level": new_parental_education,
+                    "Distance_from_Home": new_distance,
+                    "Gender": new_gender
+                }
+
+
+                # -----------------------------------------
+                # TEST STUDENT WITH MODEL FIRST
+                # -----------------------------------------
+
+                try:
+
+                    test_student = pd.DataFrame(
+                        [new_student]
+                    )
+
+                    test_probability = model.predict_proba(
+                        test_student[REQUIRED_FEATURES]
+                    )[:, 1][0]
+
+
+                    # -------------------------------------
+                    # SAVE TO SESSION
+                    # -------------------------------------
+
+                    st.session_state.added_students.append(
+                        new_student
+                    )
+
+
+                    new_student_number = (
+                        len(raw_data)
+                        + len(st.session_state.added_students)
+                    )
+
+                    generated_id = (
+                        f"S{1000 + new_student_number:05d}"
+                    )
+
+
+                    st.session_state.last_added_student = {
+                        "Student_ID": generated_id,
+                        "Risk_Probability": float(
+                            test_probability
+                        )
+                    }
+
+
+                    st.session_state.show_add_student = False
+
+                    st.rerun()
+
+
+                except Exception as exc:
+
+                    st.error(
+                        f"Student could not be added: {exc}"
+                    )
+
+
+    # =====================================================
+    # SUCCESS MESSAGE
+    # =====================================================
+
+    if "last_added_student" in st.session_state:
+
+        added = st.session_state.last_added_student
+
+        new_result = analysed[
+            analysed["Student_ID"]
+            == added["Student_ID"]
+        ]
+
+        if not new_result.empty:
+
+            new_student_result = new_result.iloc[0]
+
+            st.success(
+                f"Student {new_student_result['Student_ID']} "
+                f"was added successfully."
+            )
+
+            result1, result2, result3, result4 = st.columns(4)
+
+            result1.metric(
+                "Student ID",
+                new_student_result["Student_ID"]
+            )
+
+            result2.metric(
+                "Risk Level",
+                new_student_result["Risk_Category"]
+            )
+
+            result3.metric(
+                "Risk Probability",
+                f"{new_student_result['Academic_Risk_Probability'] * 100:.1f}%"
+            )
+
+            result4.metric(
+                "Intervention",
+                (
+                    "Required"
+                    if new_student_result[
+                        "Eligible_For_Intervention"
+                    ]
+                    else "Not Required"
+                )
+            )
+
+            st.write(
+                "**Key Factors:** "
+                f"{new_student_result['Key_Factors']}"
+            )
+
+            st.write(
+                "**Recommended Action:** "
+                f"{new_student_result['Recommended_Action']}"
+            )
+
+            if st.button(
+                "Dismiss",
+                key="dismiss_added_student"
+            ):
+
+                del st.session_state[
+                    "last_added_student"
+                ]
+
+                st.rerun()
+
+
+    # =====================================================
+    # STUDENT RECORDS
+    # =====================================================
+
+    st.write("")
+    st.markdown("### Student Records")
+
+    st.caption(
+        f"{len(analysed):,} students currently in the system"
+    )
+
+
+    # -----------------------------------------------------
+    # FILTERS
+    # -----------------------------------------------------
+
+    c1, c2, c3 = st.columns(
+        [2, 1, 1]
+    )
 
     search = c1.text_input(
         "Search Student ID",
-        placeholder="e.g. S01001"
+        placeholder="e.g. S01001",
+        key="students_search"
     )
 
     risk = c2.selectbox(
         "Risk Level",
-        ["All", "Low", "Medium", "High", "Very High"]
+        [
+            "All",
+            "Low",
+            "Medium",
+            "High",
+            "Very High"
+        ],
+        key="students_risk_filter"
     )
 
     eligibility = c3.selectbox(
         "Status",
-        ["All", "At Risk", "On Track"]
+        [
+            "All",
+            "At Risk",
+            "On Track"
+        ],
+        key="students_status_filter"
     )
+
+
+    # -----------------------------------------------------
+    # FILTER DATA
+    # -----------------------------------------------------
 
     student_data = analysed.copy()
 
     if search.strip():
+
         student_data = student_data[
-            student_data["Student_ID"].str.contains(
+            student_data[
+                "Student_ID"
+            ].str.contains(
                 search.strip(),
                 case=False,
                 na=False
             )
         ]
 
+
     if risk != "All":
+
         student_data = student_data[
             student_data["Risk_Category"] == risk
         ]
 
+
     if eligibility == "At Risk":
+
         student_data = student_data[
-            student_data["Eligible_For_Intervention"]
+            student_data[
+                "Eligible_For_Intervention"
+            ]
         ]
+
     elif eligibility == "On Track":
+
         student_data = student_data[
-            ~student_data["Eligible_For_Intervention"]
+            ~student_data[
+                "Eligible_For_Intervention"
+            ]
         ]
+
+
+    # -----------------------------------------------------
+    # TABLE
+    # -----------------------------------------------------
 
     out = student_data[[
         "Student_ID",
@@ -2442,13 +3070,15 @@ elif page == "Students":
         "Recommended_Action"
     ]].copy()
 
+
     out["Academic_Risk_Probability"] = (
         out["Academic_Risk_Probability"] * 100
     ).round(1)
 
+
     out = out.rename(columns={
         "Risk_Category": "Risk Level",
-        "Academic_Risk_Probability": "Risk Score",
+        "Academic_Risk_Probability": "Risk Probability",
         "Hours_Studied": "Hours Studied",
         "Previous_Scores": "Previous Score",
         "Attendance_Risk": "Attendance Risk",
@@ -2456,21 +3086,21 @@ elif page == "Students":
         "Recommended_Action": "Recommended Action"
     })
 
+
     st.dataframe(
         out,
         hide_index=True,
         use_container_width=True,
         height=650,
         column_config={
-            "Risk Score": st.column_config.ProgressColumn(
-                "Risk Score",
+            "Risk Probability": st.column_config.ProgressColumn(
+                "Risk Probability",
                 min_value=0,
                 max_value=100,
                 format="%.1f%%"
             )
         }
     )
-
 
 # =========================================================
 # RISK ANALYSIS
