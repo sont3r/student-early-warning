@@ -1652,7 +1652,7 @@ if page == "Dashboard":
 
     with a:
         st.button(
-            f"●  Total Students\n\n{total_students:,}\n\nStudent records analysed",
+            f"●  All Students\n\n{total_students:,}\n\nStudent records",
             key="card_total",
             use_container_width=True,
             on_click=select_dashboard_segment,
@@ -1661,7 +1661,7 @@ if page == "Dashboard":
 
     with b:
         st.button(
-            f"❗  At Risk Students\n\n{at_risk:,}\n\n{at_risk_pct:.1f}% of total",
+            f"❗  Need Support\n\n{at_risk:,}\n\n{at_risk_pct:.1f}% of students",
             key="card_at_risk",
             use_container_width=True,
             on_click=select_dashboard_segment,
@@ -1670,7 +1670,7 @@ if page == "Dashboard":
 
     with c:
         st.button(
-            f"▲  Very High Risk\n\n{very_high:,}\n\n{very_high_pct:.1f}% of total",
+            f"▲  Urgent\n\n{very_high:,}\n\n{very_high_pct:.1f}% of students",
             key="card_very_high",
             use_container_width=True,
             on_click=select_dashboard_segment,
@@ -1679,13 +1679,12 @@ if page == "Dashboard":
 
     with d:
         st.button(
-            f"✓  On Track\n\n{on_track:,}\n\n{on_track_pct:.1f}% of total",
+            f"✓  On Track\n\n{on_track:,}\n\n{on_track_pct:.1f}% of students",
             key="card_on_track",
             use_container_width=True,
             on_click=select_dashboard_segment,
             args=("on-track",)
         )
-
     selected_segment = st.session_state.dashboard_segment
 
     if selected_segment:
