@@ -1608,477 +1608,777 @@ if top_search.strip():
 
 if page == "Dashboard":
 
+    # -----------------------------------------------------
+    # HEADER
+    # -----------------------------------------------------
+
     st.markdown(
         """
         <div class="welcome">
-            <div class="welcome-title">Welcome back, James</div>
-            <div class="welcome-sub">Here's an overview of the Early Warning System</div>
+            <div class="welcome-title">Student Early Warning System</div>
+            <div class="welcome-sub">
+                Quick overview of student academic support and intervention needs
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    # -----------------------------------------------------
+    # DASHBOARD GROUPS
+    # -----------------------------------------------------
+
     total_students = len(analysed)
 
-    # Mutually exclusive dashboard status groups.
-    # On Track: not eligible under the intervention rule.
-    # Very High Risk: ML risk >= 75%.
-    # At Risk: intervention-eligible students who are not already Very High Risk.
     on_track_mask = ~analysed["Eligible_For_Intervention"]
-    very_high_mask = analysed["Academic_Risk_Probability"] >= 0.75
-    at_risk_mask = (
+
+    urgent_mask = (
+        analysed["Academic_Risk_Probability"] >= 0.75
+    )
+
+    need_support_mask = (
         analysed["Eligible_For_Intervention"]
-        & ~very_high_mask
+        & ~urgent_mask
     )
 
     on_track = int(on_track_mask.sum())
-    very_high = int(very_high_mask.sum())
-    at_risk = int(at_risk_mask.sum())
+    urgent = int(urgent_mask.sum())
+    need_support = int(need_support_mask.sum())
 
-    at_risk_pct = at_risk / total_students * 100
-    very_high_pct = very_high / total_students * 100
-    on_track_pct = on_track / total_students * 100
+    need_support_pct = (
+        need_support / total_students * 100
+        if total_students else 0
+    )
+
+    urgent_pct = (
+        urgent / total_students * 100
+        if total_students else 0
+    )
+
+    on_track_pct = (
+        on_track / total_students * 100
+        if total_students else 0
+    )
+
+    # -----------------------------------------------------
+    # SELECTED DASHBOARD VIEW
+    # -----------------------------------------------------
 
     if "dashboard_segment" not in st.session_state:
-        st.session_state.dashboard_segment = None
+        st.session_state.dashboard_segment = "total"
 
     def select_dashboard_segment(segment):
         st.session_state.dashboard_segment = segment
 
-    def clear_dashboard_segment():
-        st.session_state.dashboard_segment = None
+    # -----------------------------------------------------
+    # SUMMARY CARDS
+    # -----------------------------------------------------
 
-    a, b, c, d = st.columns(4)
+    card1, card2, card3, card4 = st.columns(4)
 
-    with a:
+    with card1:
         st.button(
-            f"●  All Students\n\n{total_students:,}\n\nStudent records",
+            f"●  All Students\n\n"
+            f"{total_students:,}\n\n"
+            f"Student records",
             key="card_total",
             use_container_width=True,
             on_click=select_dashboard_segment,
             args=("total",)
         )
 
-    with b:
+    with card2:
         st.button(
-            f"❗  Need Support\n\n{at_risk:,}\n\n{at_risk_pct:.1f}% of students",
+            f"❗  Need Support\n\n"
+            f"{need_support:,}\n\n"
+            f"{need_support_pct:.1f}% of students",
             key="card_at_risk",
             use_container_width=True,
             on_click=select_dashboard_segment,
-            args=("at-risk",)
+            args=("need-support",)
         )
 
-    with c:
+    with card3:
         st.button(
-            f"▲  Urgent\n\n{very_high:,}\n\n{very_high_pct:.1f}% of students",
+            f"▲  Urgent\n\n"
+            f"{urgent:,}\n\n"
+            f"{urgent_pct:.1f}% of students",
             key="card_very_high",
             use_container_width=True,
             on_click=select_dashboard_segment,
-            args=("very-high",)
+            args=("urgent",)
         )
 
-    with d:
+    with card4:
         st.button(
-            f"✓  On Track\n\n{on_track:,}\n\n{on_track_pct:.1f}% of students",
+            f"✓  On Track\n\n"
+            f"{on_track:,}\n\n"
+            f"{on_track_pct:.1f}% of students",
             key="card_on_track",
             use_container_width=True,
             on_click=select_dashboard_segment,
             args=("on-track",)
         )
-    selected_segment = st.session_state.dashboard_segment
-
-    if selected_segment:
-        segment_config = {
-            "total": {
-                "title": "Total Students",
-                "description": "All student records currently analysed by the Early Warning System.",
-                "tone": "segment-blue",
-                "status": None,
-                "data": analysed.copy()
-            },
-            "at-risk": {
-                "title": "At Risk Students",
-                "description": "Intervention-eligible students who are not already in the Very High Risk group.",
-                "tone": "segment-red",
-                "status": "At Risk",
-                "data": analysed[at_risk_mask].copy()
-            },
-            "very-high": {
-                "title": "Very High Risk Students",
-                "description": "Students whose predicted academic-risk probability is 75% or higher.",
-                "tone": "segment-yellow",
-                "status": "Very High Risk",
-                "data": analysed[very_high_mask].copy()
-            },
-            "on-track": {
-                "title": "On Track Students",
-                "description": "Students who do not currently meet the intervention eligibility rules.",
-                "tone": "segment-green",
-                "status": "On Track",
-                "data": analysed[on_track_mask].copy()
-            }
-        }
-
-        segment = segment_config[selected_segment]
-        selected_data = segment["data"].copy()
-
-        if segment["status"] is not None:
-            selected_data["Display_Status"] = segment["status"]
-
-        st.markdown(
-            f"""
-            <div class="selected-segment-panel {segment["tone"]}">
-                <div class="selected-segment-title">{segment["title"]}</div>
-                <div class="selected-segment-sub">
-                    {segment["description"]} &nbsp;·&nbsp; {len(selected_data):,} students
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        filter_a, filter_b, filter_c, filter_d = st.columns([1, 1.2, 2, 0.8])
-
-        segment_risk = filter_a.selectbox(
-            "ML Risk Level",
-            ["All", "Low", "Medium", "High", "Very High"],
-            key=f"segment_risk_{selected_segment}"
-        )
-
-        segment_attendance = filter_b.selectbox(
-            "Attendance",
-            ["All", "Attendance Risk", "No Attendance Risk"],
-            key=f"segment_attendance_{selected_segment}"
-        )
-
-        segment_search = filter_c.text_input(
-            "Search Student ID",
-            placeholder="e.g. S01001",
-            key=f"segment_search_{selected_segment}"
-        )
-
-        segment_rows = filter_d.selectbox(
-            "Rows",
-            [10, 25, 50, 100],
-            index=1,
-            key=f"segment_rows_{selected_segment}"
-        )
-
-        if segment_risk != "All":
-            selected_data = selected_data[
-                selected_data["Risk_Category"] == segment_risk
-            ]
-
-        if segment_attendance == "Attendance Risk":
-            selected_data = selected_data[selected_data["Attendance_Risk"]]
-        elif segment_attendance == "No Attendance Risk":
-            selected_data = selected_data[~selected_data["Attendance_Risk"]]
-
-        if segment_search.strip():
-            selected_data = selected_data[
-                selected_data["Student_ID"].str.contains(
-                    segment_search.strip(),
-                    case=False,
-                    na=False
-                )
-            ]
-
-        selected_data = selected_data.sort_values(
-            "Academic_Risk_Probability",
-            ascending=False
-        )
-
-        render_dashboard_student_table(
-            selected_data,
-            max_rows=segment_rows
-        )
 
     st.write("")
 
-    # Broad dashboard charts
-    left, middle, right = st.columns([1.02, 1.08, 1.18], gap="large")
+    selected_segment = st.session_state.dashboard_segment
 
-    with left:
-        with st.container(border=True):
-            st.markdown(
-                '<div class="dashboard-chart-title">Risk Level Overview</div>'
-                '<div class="dashboard-chart-sub">Model risk across all students</div>',
-                unsafe_allow_html=True
-            )
-            st.altair_chart(
-                risk_bar_chart(analysed),
-                use_container_width=True,
-                theme=None
-            )
+    # =====================================================
+    # ALL STUDENTS
+    # =====================================================
 
-    with middle:
-        with st.container(border=True):
-            st.markdown(
-                '<div class="dashboard-chart-title">Risk Factors (Top 5)</div>'
-                '<div class="dashboard-chart-sub">Most common measurable warning indicators</div>',
-                unsafe_allow_html=True
-            )
-            donut = risk_factor_donut(analysed)
-            st.altair_chart(
-                donut,
-                use_container_width=True,
-                theme=None
-            )
+    if selected_segment == "total":
 
-    with right:
-        with st.container(border=True):
-            st.markdown(
-                '<div class="dashboard-chart-title">Resource Allocation (Optimised)</div>'
-                '<div class="dashboard-chart-sub">Support recommended for the top 10 priorities</div>',
-                unsafe_allow_html=True
-            )
+        st.markdown("### Cohort Overview")
 
-            eligible_for_dash = analysed[
-                analysed["Eligible_For_Intervention"]
-            ].copy()
+        st.caption(
+            "A general overview of attendance and academic activity "
+            "across the whole student population."
+        )
 
-            cap = min(10, len(eligible_for_dash))
+        avg_attendance = analysed["Attendance"].mean()
+        avg_previous = analysed["Previous_Scores"].mean()
+        avg_study = analysed["Hours_Studied"].mean()
 
-            if cap:
-                dash_selected = run_optimisation(eligible_for_dash, cap)
-                dash_support = support_mix(dash_selected)
-                chart = support_bar_chart(dash_support)
+        metric1, metric2, metric3 = st.columns(3)
 
-                if chart is not None:
+        metric1.metric(
+            "Average Attendance",
+            f"{avg_attendance:.1f}%"
+        )
+
+        metric2.metric(
+            "Average Previous Score",
+            f"{avg_previous:.1f}"
+        )
+
+        metric3.metric(
+            "Average Study Hours",
+            f"{avg_study:.1f} hrs"
+        )
+
+        st.write("")
+
+        chart_left, chart_right = st.columns(
+            [1.35, 1],
+            gap="large"
+        )
+
+        # Attendance distribution
+        with chart_left:
+
+            with st.container(border=True):
+
+                st.markdown("#### Attendance Distribution")
+
+                st.caption(
+                    "How attendance is distributed across all students"
+                )
+
+                attendance_chart = (
+                    alt.Chart(analysed)
+                    .mark_bar(
+                        cornerRadiusTopLeft=4,
+                        cornerRadiusTopRight=4
+                    )
+                    .encode(
+                        x=alt.X(
+                            "Attendance:Q",
+                            bin=alt.Bin(step=5),
+                            title="Attendance (%)"
+                        ),
+                        y=alt.Y(
+                            "count():Q",
+                            title="Number of Students"
+                        ),
+                        tooltip=[
+                            alt.Tooltip(
+                                "count():Q",
+                                title="Students"
+                            )
+                        ]
+                    )
+                    .properties(
+                        height=280,
+                        background="#FFFFFF"
+                    )
+                    .configure_view(
+                        stroke=None
+                    )
+                )
+
+                st.altair_chart(
+                    attendance_chart,
+                    use_container_width=True,
+                    theme=None
+                )
+
+        # Previous score distribution
+        with chart_right:
+
+            with st.container(border=True):
+
+                st.markdown("#### Previous Score Distribution")
+
+                st.caption(
+                    "Previous academic performance across the cohort"
+                )
+
+                previous_chart = (
+                    alt.Chart(analysed)
+                    .mark_bar(
+                        cornerRadiusTopLeft=4,
+                        cornerRadiusTopRight=4
+                    )
+                    .encode(
+                        x=alt.X(
+                            "Previous_Scores:Q",
+                            bin=alt.Bin(step=5),
+                            title="Previous Score"
+                        ),
+                        y=alt.Y(
+                            "count():Q",
+                            title="Students"
+                        ),
+                        tooltip=[
+                            alt.Tooltip(
+                                "count():Q",
+                                title="Students"
+                            )
+                        ]
+                    )
+                    .properties(
+                        height=280,
+                        background="#FFFFFF"
+                    )
+                    .configure_view(
+                        stroke=None
+                    )
+                )
+
+                st.altair_chart(
+                    previous_chart,
+                    use_container_width=True,
+                    theme=None
+                )
+
+    # =====================================================
+    # NEED SUPPORT
+    # =====================================================
+
+    elif selected_segment == "need-support":
+
+        support_students = analysed[
+            need_support_mask
+        ].copy()
+
+        st.markdown("### Students Needing Support")
+
+        st.caption(
+            "Students who currently meet the intervention criteria "
+            "but are not in the urgent group."
+        )
+
+        support1, support2, support3 = st.columns(3)
+
+        support1.metric(
+            "Students Needing Support",
+            f"{len(support_students):,}"
+        )
+
+        attendance_support = int(
+            support_students["Attendance_Risk"].sum()
+        )
+
+        support2.metric(
+            "Attendance Concerns",
+            f"{attendance_support:,}"
+        )
+
+        avg_support_risk = (
+            support_students[
+                "Academic_Risk_Probability"
+            ].mean() * 100
+            if not support_students.empty
+            else 0
+        )
+
+        support3.metric(
+            "Average Risk Probability",
+            f"{avg_support_risk:.1f}%"
+        )
+
+        st.write("")
+
+        left, right = st.columns(
+            [1, 1.25],
+            gap="large"
+        )
+
+        # Main concerns
+        with left:
+
+            with st.container(border=True):
+
+                st.markdown("#### Why Students Need Support")
+
+                st.caption(
+                    "Most common warning indicators in this group"
+                )
+
+                factor_counts = {
+                    "Attendance": int(
+                        (
+                            support_students["Attendance"] < 70
+                        ).sum()
+                    ),
+                    "Previous Scores": int(
+                        (
+                            support_students["Previous_Scores"] < 65
+                        ).sum()
+                    ),
+                    "Low Study Hours": int(
+                        support_students[
+                            "Key_Factors"
+                        ].str.contains(
+                            "Low Study Hours",
+                            case=False,
+                            na=False
+                        ).sum()
+                    ),
+                    "Low Motivation": int(
+                        support_students[
+                            "Key_Factors"
+                        ].str.contains(
+                            "Low Motivation",
+                            case=False,
+                            na=False
+                        ).sum()
+                    ),
+                    "Limited Resources": int(
+                        support_students[
+                            "Key_Factors"
+                        ].str.contains(
+                            "Limited Resources",
+                            case=False,
+                            na=False
+                        ).sum()
+                    )
+                }
+
+                factors_df = pd.DataFrame({
+                    "Concern": list(factor_counts.keys()),
+                    "Students": list(factor_counts.values())
+                })
+
+                factors_df = factors_df.sort_values(
+                    "Students",
+                    ascending=False
+                )
+
+                factor_chart = (
+                    alt.Chart(factors_df)
+                    .mark_bar(
+                        cornerRadiusEnd=5
+                    )
+                    .encode(
+                        x=alt.X(
+                            "Students:Q",
+                            title="Students"
+                        ),
+                        y=alt.Y(
+                            "Concern:N",
+                            sort="-x",
+                            title=None
+                        ),
+                        tooltip=[
+                            "Concern:N",
+                            "Students:Q"
+                        ]
+                    )
+                    .properties(
+                        height=280,
+                        background="#FFFFFF"
+                    )
+                    .configure_view(
+                        stroke=None
+                    )
+                )
+
+                st.altair_chart(
+                    factor_chart,
+                    use_container_width=True,
+                    theme=None
+                )
+
+        # Recommended support
+        with right:
+
+            with st.container(border=True):
+
+                st.markdown("#### Recommended Support")
+
+                st.caption(
+                    "Support currently recommended for these students"
+                )
+
+                support_types = support_mix(
+                    support_students
+                )
+
+                support_chart = support_bar_chart(
+                    support_types
+                )
+
+                if support_chart is not None:
+
                     st.altair_chart(
-                        chart,
+                        support_chart,
                         use_container_width=True,
                         theme=None
                     )
-            else:
-                st.info("No eligible students.")
 
-    # Students at risk
-    st.markdown("### Students at Risk")
+                else:
 
-    f1, f2, f3, f4 = st.columns([1, 1, 1.5, 0.8])
+                    st.info(
+                        "No recommended support to display."
+                    )
 
-    selected_risk = f1.selectbox(
-        "Risk Level",
-        ["All", "Low", "Medium", "High", "Very High"],
-        key="dash_risk"
+    # =====================================================
+    # URGENT
+    # =====================================================
+
+    elif selected_segment == "urgent":
+
+        urgent_students = analysed[
+            urgent_mask
+        ].copy()
+
+        st.markdown("### Urgent Attention")
+
+        st.caption(
+            "Students with a predicted academic-risk probability "
+            "of 75% or higher."
+        )
+
+        urgent1, urgent2, urgent3 = st.columns(3)
+
+        urgent1.metric(
+            "Urgent Students",
+            f"{len(urgent_students):,}"
+        )
+
+        urgent_attendance = int(
+            (
+                urgent_students["Attendance"] < 70
+            ).sum()
+        )
+
+        urgent2.metric(
+            "Below 70% Attendance",
+            f"{urgent_attendance:,}"
+        )
+
+        urgent_avg = (
+            urgent_students[
+                "Academic_Risk_Probability"
+            ].mean() * 100
+            if not urgent_students.empty
+            else 0
+        )
+
+        urgent3.metric(
+            "Average Risk Probability",
+            f"{urgent_avg:.1f}%"
+        )
+
+        st.write("")
+
+        with st.container(border=True):
+
+            st.markdown("#### Highest Priority Students")
+
+            st.caption(
+                "Urgent students ordered by intervention priority"
+            )
+
+            urgent_table = urgent_students.sort_values(
+                "Intervention_Utility",
+                ascending=False
+            )
+
+            render_dashboard_student_table(
+                urgent_table,
+                max_rows=10
+            )
+
+    # =====================================================
+    # ON TRACK
+    # =====================================================
+
+    elif selected_segment == "on-track":
+
+        on_track_students = analysed[
+            on_track_mask
+        ].copy()
+
+        st.markdown("### Students On Track")
+
+        st.caption(
+            "Students who do not currently meet the intervention criteria."
+        )
+
+        track1, track2, track3 = st.columns(3)
+
+        avg_track_attendance = (
+            on_track_students["Attendance"].mean()
+            if not on_track_students.empty
+            else 0
+        )
+
+        avg_track_score = (
+            on_track_students["Previous_Scores"].mean()
+            if not on_track_students.empty
+            else 0
+        )
+
+        avg_track_study = (
+            on_track_students["Hours_Studied"].mean()
+            if not on_track_students.empty
+            else 0
+        )
+
+        track1.metric(
+            "Average Attendance",
+            f"{avg_track_attendance:.1f}%"
+        )
+
+        track2.metric(
+            "Average Previous Score",
+            f"{avg_track_score:.1f}"
+        )
+
+        track3.metric(
+            "Average Study Hours",
+            f"{avg_track_study:.1f} hrs"
+        )
+
+        st.write("")
+
+        left, right = st.columns(2, gap="large")
+
+        with left:
+
+            with st.container(border=True):
+
+                st.markdown("#### Attendance")
+
+                st.caption(
+                    "Attendance distribution for students currently on track"
+                )
+
+                track_attendance_chart = (
+                    alt.Chart(on_track_students)
+                    .mark_bar(
+                        cornerRadiusTopLeft=4,
+                        cornerRadiusTopRight=4
+                    )
+                    .encode(
+                        x=alt.X(
+                            "Attendance:Q",
+                            bin=alt.Bin(step=5),
+                            title="Attendance (%)"
+                        ),
+                        y=alt.Y(
+                            "count():Q",
+                            title="Students"
+                        )
+                    )
+                    .properties(
+                        height=270,
+                        background="#FFFFFF"
+                    )
+                    .configure_view(
+                        stroke=None
+                    )
+                )
+
+                st.altair_chart(
+                    track_attendance_chart,
+                    use_container_width=True,
+                    theme=None
+                )
+
+        with right:
+
+            with st.container(border=True):
+
+                st.markdown("#### Previous Performance")
+
+                st.caption(
+                    "Previous-score distribution for students currently on track"
+                )
+
+                track_score_chart = (
+                    alt.Chart(on_track_students)
+                    .mark_bar(
+                        cornerRadiusTopLeft=4,
+                        cornerRadiusTopRight=4
+                    )
+                    .encode(
+                        x=alt.X(
+                            "Previous_Scores:Q",
+                            bin=alt.Bin(step=5),
+                            title="Previous Score"
+                        ),
+                        y=alt.Y(
+                            "count():Q",
+                            title="Students"
+                        )
+                    )
+                    .properties(
+                        height=270,
+                        background="#FFFFFF"
+                    )
+                    .configure_view(
+                        stroke=None
+                    )
+                )
+
+                st.altair_chart(
+                    track_score_chart,
+                    use_container_width=True,
+                    theme=None
+                )
+
+    # =====================================================
+    # STUDENTS NEEDING ATTENTION
+    # =====================================================
+
+    st.write("")
+    st.markdown("---")
+
+    st.markdown("### Students Needing Attention")
+
+    st.caption(
+        "Highest-priority students currently eligible for academic support."
     )
 
-    selected_attendance = f2.selectbox(
-        "Attendance",
-        ["All", "Attendance Risk", "No Attendance Risk"],
-        key="dash_att"
-    )
-
-    search_id = f3.text_input(
-        "Search Student ID",
-        placeholder="e.g. S01001",
-        key="dash_search"
-    )
-
-    sort_by = f4.selectbox(
-        "Sort By",
-        ["Risk Score", "Utility"],
-        key="dash_sort"
-    )
-
-    table = analysed[
+    attention_students = analysed[
         analysed["Eligible_For_Intervention"]
     ].copy()
 
-    if selected_risk != "All":
-        table = table[table["Risk_Category"] == selected_risk]
+    attention_students = attention_students.sort_values(
+        "Intervention_Utility",
+        ascending=False
+    )
 
-    if selected_attendance == "Attendance Risk":
-        table = table[table["Attendance_Risk"]]
-    elif selected_attendance == "No Attendance Risk":
-        table = table[~table["Attendance_Risk"]]
+    # -----------------------------------------------------
+    # SIMPLE FILTERS
+    # -----------------------------------------------------
 
-    if search_id.strip():
-        table = table[
-            table["Student_ID"].str.contains(
-                search_id.strip(),
+    filter1, filter2, filter3 = st.columns(
+        [1, 1, 2]
+    )
+
+    attention_level = filter1.selectbox(
+        "Risk Level",
+        [
+            "All",
+            "Low",
+            "Medium",
+            "High",
+            "Very High"
+        ],
+        key="attention_risk"
+    )
+
+    attendance_filter = filter2.selectbox(
+        "Attendance",
+        [
+            "All",
+            "Below 70%",
+            "70% or Above"
+        ],
+        key="attention_attendance"
+    )
+
+    attention_search = filter3.text_input(
+        "Search Student ID",
+        placeholder="e.g. S01001",
+        key="attention_search"
+    )
+
+    if attention_level != "All":
+
+        attention_students = attention_students[
+            attention_students["Risk_Category"]
+            == attention_level
+        ]
+
+    if attendance_filter == "Below 70%":
+
+        attention_students = attention_students[
+            attention_students["Attendance"] < 70
+        ]
+
+    elif attendance_filter == "70% or Above":
+
+        attention_students = attention_students[
+            attention_students["Attendance"] >= 70
+        ]
+
+    if attention_search.strip():
+
+        attention_students = attention_students[
+            attention_students[
+                "Student_ID"
+            ].str.contains(
+                attention_search.strip(),
                 case=False,
                 na=False
             )
         ]
 
-    sort_col = (
-        "Academic_Risk_Probability"
-        if sort_by == "Risk Score"
-        else "Intervention_Utility"
-    )
-
-    table = table.sort_values(sort_col, ascending=False).head(20)
-
-    table_display = table[[
-        "Student_ID",
-        "Risk_Category",
-        "Academic_Risk_Probability",
-        "Attendance",
-        "Previous_Scores",
-        "Key_Factors",
-        "Recommended_Action"
-    ]].copy()
-
-    table_display["Academic_Risk_Probability"] = (
-        table_display["Academic_Risk_Probability"] * 100
-    ).round(1)
-
-    table_display = table_display.rename(columns={
-        "Risk_Category": "Risk Level",
-        "Academic_Risk_Probability": "Risk Score",
-        "Previous_Scores": "Previous Score",
-        "Key_Factors": "Key Factors",
-        "Recommended_Action": "Recommended Action"
-    })
-
     render_dashboard_student_table(
-        table,
-        max_rows=20
+        attention_students,
+        max_rows=10
     )
 
-    # Bottom overview row
+    st.caption(
+        "Showing up to 10 students. "
+        "Use the Students page to view the full student list."
+    )
+
+    # -----------------------------------------------------
+    # RESOURCE ALLOCATION LINK / MESSAGE
+    # -----------------------------------------------------
+
     st.write("")
-    bottom_left, bottom_right = st.columns([1, 1], gap="large")
 
-    with bottom_left:
-        with st.container(border=True):
+    with st.container(border=True):
+
+        allocation_left, allocation_right = st.columns(
+            [3, 1]
+        )
+
+        with allocation_left:
+
             st.markdown(
-                '<div class="dashboard-chart-title">Resource Allocation by Risk Level</div>'
-                '<div class="dashboard-chart-sub">Risk composition of the top 50 intervention priorities</div>',
-                unsafe_allow_html=True
+                "#### Ready to allocate support?"
             )
 
-            eligible = analysed[
-                analysed["Eligible_For_Intervention"]
-            ].copy()
-
-            top50 = eligible.nlargest(
-                min(50, len(eligible)),
-                "Intervention_Utility"
+            st.caption(
+                "Use Resource Allocation to prioritise students "
+                "when intervention places and resources are limited."
             )
 
-            allocation = (
-                top50["Risk_Category"]
-                .value_counts()
-                .reindex(RISK_ORDER)
-                .fillna(0)
-                .reset_index()
+        with allocation_right:
+
+            st.info(
+                "Open **Resource Allocation** from the sidebar."
             )
-            allocation.columns = ["Risk Level", "Students"]
-
-            allocation_chart = (
-                alt.Chart(allocation)
-                .mark_arc(
-                    innerRadius=52,
-                    outerRadius=92,
-                    stroke="#FFFFFF",
-                    strokeWidth=2
-                )
-                .encode(
-                    theta="Students:Q",
-                    color=alt.Color(
-                        "Risk Level:N",
-                        scale=alt.Scale(
-                            domain=RISK_ORDER,
-                            range=[
-                                RISK_COLORS["Low"],
-                                RISK_COLORS["Medium"],
-                                RISK_COLORS["High"],
-                                RISK_COLORS["Very High"]
-                            ]
-                        ),
-                        legend=alt.Legend(
-                            orient="bottom",
-                            title=None,
-                            labelColor="#516176"
-                        )
-                    ),
-                    tooltip=["Risk Level", "Students"]
-                )
-                .properties(
-                    height=245,
-                    background="#FFFFFF"
-                )
-                .configure_view(stroke=None)
-            )
-
-            st.altair_chart(
-                allocation_chart,
-                use_container_width=True,
-                theme=None
-            )
-
-    with bottom_right:
-        with st.container(border=True):
-            st.markdown(
-                '<div class="dashboard-chart-title">Student Details</div>'
-                '<div class="dashboard-chart-sub">Inspect one student record</div>',
-                unsafe_allow_html=True
-            )
-
-            detail_ids = table["Student_ID"].tolist()
-
-            if not detail_ids:
-                detail_ids = analysed["Student_ID"].head(50).tolist()
-
-            selected_id = st.selectbox(
-                "Student",
-                detail_ids,
-                label_visibility="collapsed",
-                key="dashboard_student_detail"
-            )
-
-            row = analysed[
-                analysed["Student_ID"] == selected_id
-            ].iloc[0]
-
-            risk_label = row["Risk_Category"]
-            pill_class = {
-                "Low": "pill-low",
-                "Medium": "pill-medium",
-                "High": "pill-high",
-                "Very High": "pill-very-high"
-            }[risk_label]
-
-            detail_html = (
-                "<div class='student-detail'>"
-                "<div style='display:flex;justify-content:space-between;align-items:center;gap:1rem;'>"
-                f"<div class='student-id'>{html_lib.escape(str(row['Student_ID']))}</div>"
-                f"<span class='risk-pill {pill_class}'>{html_lib.escape(str(risk_label))} Risk</span>"
-                "</div>"
-                "<div class='student-detail-grid'>"
-                "<div class='student-detail-item'>"
-                "<div class='detail-label'>Risk Score</div>"
-                f"<div class='detail-value'>{row['Academic_Risk_Probability']*100:.1f}%</div>"
-                "</div>"
-                "<div class='student-detail-item'>"
-                "<div class='detail-label'>Attendance</div>"
-                f"<div class='detail-value'>{row['Attendance']:.0f}%</div>"
-                "</div>"
-                "<div class='student-detail-item'>"
-                "<div class='detail-label'>Previous Score</div>"
-                f"<div class='detail-value'>{row['Previous_Scores']:.0f}</div>"
-                "</div>"
-                "<div class='student-detail-item'>"
-                "<div class='detail-label'>Hours Studied</div>"
-                f"<div class='detail-value'>{row['Hours_Studied']:.0f}</div>"
-                "</div>"
-                "<div class='student-detail-item' style='grid-column:1/-1;'>"
-                "<div class='detail-label'>Key Risk Factors</div>"
-                f"<div class='detail-value'>{html_lib.escape(str(row['Key_Factors']))}</div>"
-                "</div>"
-                "<div class='student-detail-item' style='grid-column:1/-1;'>"
-                "<div class='detail-label'>Recommended Action</div>"
-                f"<div class='detail-value'>{html_lib.escape(str(row['Recommended_Action']))}</div>"
-                "</div>"
-                "</div>"
-                "</div>"
-            )
-
-            st.markdown(detail_html, unsafe_allow_html=True)
-
 
 # =========================================================
 # STUDENTS
